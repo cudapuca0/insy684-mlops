@@ -1,10 +1,12 @@
 {
   "name": "INSY 684 MLOps",
-  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": false
+    }
   },
-  "hostRequirements": { "cpus": 2, "memory": "8gb", "storage": "32gb" },
+  "hostRequirements": { "cpus": 2 },
   "forwardPorts": [5001, 8000, 5050, 4200, 3000, 9090],
   "portsAttributes": {
     "5001": { "label": "Frontend" },
@@ -14,8 +16,8 @@
     "3000": { "label": "Grafana" },
     "9090": { "label": "Prometheus" }
   },
-  "postCreateCommand": "pip install -r requirements-dev.txt && [ -f .env ] || cp .env.example .env",
+  "postCreateCommand": "[ -f .env ] || cp .env.example .env",
   "customizations": {
-    "vscode": { "extensions": ["ms-python.python", "charliermarsh.ruff", "ms-azuretools.vscode-docker"] }
+    "vscode": { "extensions": ["ms-python.python", "ms-azuretools.vscode-docker"] }
   }
 }
