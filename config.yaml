@@ -1,0 +1,94 @@
+# =============================================================================
+# Project configuration — the ONLY file you should need to edit when you swap
+# in your real dataset. Every service (training, API, frontend, simulator,
+# monitor) and the tests read from here.
+# =============================================================================
+
+project:
+  name: "Tumour Classifier (placeholder)"
+  description: >
+    Placeholder problem: predict whether a breast-tumour biopsy is malignant
+    from cell-nucleus measurements. Replace with your team's problem statement.
+
+data:
+  # "sklearn_breast_cancer" loads the built-in placeholder dataset.
+  # For your own data, set source to "csv" and point path at the file
+  # (relative to the repo root, e.g. data/raw/churn.csv).
+  source: "sklearn_breast_cancer"
+  path: "data/raw/dataset.csv"
+  target: "malignant"
+  test_size: 0.2
+  random_state: 42
+
+features:
+  # Columns the model uses. Keep this list short enough for a usable web form.
+  numeric:
+    - mean_radius
+    - mean_texture
+    - mean_smoothness
+    - mean_compactness
+    - mean_concave_points
+    - worst_area
+  categorical: []
+
+  # Default values shown in the frontend form, plus [min, max] sanity bounds
+  # the API uses to reject nonsense input (HTTP 422).
+  defaults:
+    mean_radius: 13.4
+    mean_texture: 18.8
+    mean_smoothness: 0.096
+    mean_compactness: 0.093
+    mean_concave_points: 0.034
+    worst_area: 686.5
+  bounds:
+    mean_radius: [0, 50]
+    mean_texture: [0, 60]
+    mean_smoothness: [0, 0.5]
+    mean_compactness: [0, 1.0]
+    mean_concave_points: [0, 0.5]
+    worst_area: [0, 6000]
+
+  # Used by the "sensible predictions" test: increasing this feature should
+  # increase the predicted probability of the positive class.
+  monotonic_increasing: mean_concave_points
+
+classes:
+  positive_label: "Malignant"
+  negative_label: "Benign"
+
+model:
+  registered_name: "tumour-classifier"
+  alias: "production"
+  # Candidate experiments — each becomes a tracked MLflow run.
+  candidates:
+    - name: logistic_regression
+      type: logistic_regression
+      params: {C: 0.1}
+    - name: logistic_regression
+      type: logistic_regression
+      params: {C: 1.0}
+    - name: logistic_regression
+      type: logistic_regression
+      params: {C: 10.0}
+    - name: random_forest
+      type: random_forest
+      params: {n_estimators: 100, max_depth: 5}
+    - name: random_forest
+      type: random_forest
+      params: {n_estimators: 300, max_depth: null}
+    - name: gradient_boosting
+      type: gradient_boosting
+      params: {n_estimators: 150, learning_rate: 0.05, max_depth: 3}
+  selection_metric: f1
+
+drift:
+  # Features the simulator shifts when --drift is on, and how.
+  inject:
+    mean_radius: {scale: 1.4, shift: 0.0}
+    worst_area: {scale: 1.8, shift: 0.0}
+    mean_texture: {scale: 1.0, shift: 6.0}
+  # Monitoring thresholds
+  window_size: 200          # most recent predictions compared to reference
+  min_window: 50            # don't compute drift on fewer rows than this
+  share_threshold: 0.3      # share of drifted columns that counts as drift
+  retrain_cooldown_minutes: 15

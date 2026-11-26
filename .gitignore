@@ -1,0 +1,28 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Local ML artifacts
+mlruns/
+mlartifacts/
+artifacts/
+*.pkl
+
+# Large data (commit a download script instead if needed)
+data/raw/*.csv
+!data/raw/.gitkeep
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

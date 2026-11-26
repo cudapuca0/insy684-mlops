@@ -1,0 +1,21 @@
+{
+  "name": "INSY 684 MLOps",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "hostRequirements": { "cpus": 2, "memory": "8gb", "storage": "32gb" },
+  "forwardPorts": [5001, 8000, 5050, 4200, 3000, 9090],
+  "portsAttributes": {
+    "5001": { "label": "Frontend" },
+    "8000": { "label": "Model API" },
+    "5050": { "label": "MLflow" },
+    "4200": { "label": "Prefect" },
+    "3000": { "label": "Grafana" },
+    "9090": { "label": "Prometheus" }
+  },
+  "postCreateCommand": "pip install -r requirements-dev.txt && [ -f .env ] || cp .env.example .env",
+  "customizations": {
+    "vscode": { "extensions": ["ms-python.python", "charliermarsh.ruff", "ms-azuretools.vscode-docker"] }
+  }
+}
