@@ -93,4 +93,10 @@ python frontend/pipeline/train.py --data frontend/data/raw/hotel_bookings.csv --
 
 ## Team
 
-_Add names and roles._
+Aleksander - Docker connection
+Alessandro - API 
+Justin - Project management
+Eglantine - Dashboard (UI)
+Alek - CI/CD
+Daniel - GitHub setup
+
