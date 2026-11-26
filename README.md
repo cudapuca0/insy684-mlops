@@ -3,7 +3,7 @@
 Predicting, at booking time, whether a hotel reservation will be canceled, and taking that model
 through an MLOps workflow (packaging, serving, deployment and a dashboard).
 
-**Live dashboard:** _add the Vercel link here_
+**Live dashboard:** https://hotel-cancelation-dashboard.vercel.app/
 
 ## Data
 
