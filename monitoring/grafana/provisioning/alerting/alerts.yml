@@ -18,7 +18,6 @@ groups:
           # $$ escapes Grafana env-var interpolation in provisioning files
           summary: "Evidently reports drift in {{ $$values.B }} share of feature columns (threshold 0.3)."
           description: "The monitor also triggers the Prefect 'training-pipeline/retrain' deployment when this happens."
-          __dashboardUid__: mlops-overview
         labels:
           severity: warning
           team: mlops
@@ -56,7 +55,6 @@ groups:
         execErrState: Error
         annotations:
           summary: "More than 10% of model API requests are failing."
-          __dashboardUid__: mlops-overview
         labels:
           severity: critical
           team: mlops
@@ -92,7 +90,6 @@ groups:
         execErrState: Error
         annotations:
           summary: "p95 latency of /predict is above 1 second."
-          __dashboardUid__: mlops-overview
         labels:
           severity: warning
           team: mlops
