@@ -87,8 +87,9 @@ drift:
     mean_radius: {scale: 1.4, shift: 0.0}
     worst_area: {scale: 1.8, shift: 0.0}
     mean_texture: {scale: 1.0, shift: 6.0}
+    mean_smoothness: {scale: 1.25, shift: 0.0}
   # Monitoring thresholds
   window_size: 200          # most recent predictions compared to reference
   min_window: 50            # don't compute drift on fewer rows than this
-  share_threshold: 0.3      # share of drifted columns that counts as drift
+  share_threshold: 0.5      # share of drifted columns that counts as drift
   retrain_cooldown_minutes: 15

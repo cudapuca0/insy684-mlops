@@ -142,7 +142,7 @@ _Add your screenshots to `docs/screenshots/` and keep these links._
 |---|---|
 | ![alert](docs/screenshots/grafana-alert.png) | ![retrain](docs/screenshots/prefect-retrain.png) |
 
-_Describe what changed:_ for example, drift share went from 0 % to 50 %, the alert fired, Prefect started
+_Describe what changed:_ for example, drift share went from below 50 % to above 50 %, the alert fired, Prefect started
 `training-pipeline/retrain`, and the API moved from model v1 to v2.
 
 ## 6. Tests

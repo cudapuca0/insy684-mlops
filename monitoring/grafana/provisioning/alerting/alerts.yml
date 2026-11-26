@@ -16,7 +16,7 @@ groups:
         execErrState: Error
         annotations:
           # $$ escapes Grafana env-var interpolation in provisioning files
-          summary: "Evidently reports drift in {{ $$values.B }} share of feature columns (threshold 0.3)."
+          summary: "Evidently reports drift in {{ $$values.B }} share of feature columns (threshold 0.5)."
           description: "The monitor also triggers the Prefect 'training-pipeline/retrain' deployment when this happens."
         labels:
           severity: warning
@@ -45,7 +45,7 @@ groups:
               type: threshold
               expression: B
               conditions:
-                - evaluator: {type: gt, params: [0.3]}
+                - evaluator: {type: gte, params: [0.5]}
 
       - uid: api-error-rate-alert
         title: High API error rate
