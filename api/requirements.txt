@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+prometheus-client
+joblib
+pandas
+numpy
+scipy
+scikit-learn==1.9.1
