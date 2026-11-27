@@ -9,5 +9,7 @@ services:
   frontend:
     build:
       context: ./frontend
+    environment:
+      API_BASE_URL: http://api:8000
     ports:
       - "127.0.0.1:3000:3000"
