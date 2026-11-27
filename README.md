@@ -65,11 +65,44 @@ frontend/                     results dashboard (see below)
     build_data.py             retrains the model and writes the dashboard's data
   data/processed/             dashboard data (aggregates only)
   web/                        Next.js site
-api/                          prediction API          (placeholder)
+api/                          prediction API (loads the model from the MLflow registry)
+training/                     MLflow-tracked training + registration (train_mlflow.py)
+mlflow-server/                MLflow tracking server image
 notebook/                     analysis notebook       (placeholder)
 app.py, DockerFile            app entry point, image  (placeholders, empty)
 .workflows/                   CI/CD                   (placeholder)
 ```
+
+## Experiment tracking and model registry (MLflow)
+
+`docker compose up` starts an MLflow server (UI: http://localhost:5050) and a one-off
+`model-registrar` job. If the registry is empty, the job registers `model/cancellation_model.joblib`
+as **`hotel-cancellation`** with the alias **`@production`**. The API then loads
+`models:/hotel-cancellation@production` and reports the version in `/health`. Without
+`MLFLOW_TRACKING_URI` (tests, CI) the API falls back to the joblib file.
+
+**Tracked training on the full data** (logs every run to MLflow, then registers the result):
+
+```bash
+docker compose up -d mlflow
+docker compose run --rm -v "$PWD/frontend/data/raw:/data" model-registrar --data /data/hotel_bookings.csv
+docker compose restart api        # pick up the new @production version
+```
+
+Each training run creates a parent run `training-pipeline` with nested runs:
+
+| Run | Fit on | Evaluated on | Purpose |
+|---|---|---|---|
+| `baseline` | — | validation | majority-class reference |
+| `extra_trees_v2` | train | validation | candidate |
+| `mlp_v0` | train | validation | candidate |
+| `ensemble` | train | validation | the final recipe, threshold 0.45 |
+| `final-ensemble` | train + validation | test (once) | registered model |
+
+The new version takes `@production` only if its test ROC AUC is at least that of the current
+production model (`--force-promote` overrides this). Code: `training/train_mlflow.py`;
+server image: `mlflow-server/Dockerfile` (SQLite by default; set `MLFLOW_BACKEND_STORE_URI` to the
+Postgres `mlflow` database once Postgres is in the compose file).
 
 ## Dashboard (`frontend/`)
 
