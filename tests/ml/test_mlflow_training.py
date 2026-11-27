@@ -68,7 +68,7 @@ def test_training_tracks_candidates_and_registers_production_model(local_mlflow)
     _, _, (X_test, _) = tm.load_and_split(SAMPLE)
     proba = model.predict_proba(X_test.head(20))[:, 1]
     assert ((proba >= 0) & (proba <= 1)).all()
-    assert version.version == "1"
+    assert str(version.version) == "1"
 
 
 def test_register_joblib_only_when_registry_is_empty(local_mlflow):
@@ -76,7 +76,7 @@ def test_register_joblib_only_when_registry_is_empty(local_mlflow):
 
     tm = load_module()
     joblib_path = ROOT / "model" / "cancellation_model.joblib"
-    assert tm.register_joblib(joblib_path, if_empty=True) == "1"
+    assert str(tm.register_joblib(joblib_path, if_empty=True)) == "1"
     assert tm.register_joblib(joblib_path, if_empty=True) is None  # already has @production
     current = MlflowClient().get_model_version_by_alias(tm.MODEL_NAME, tm.MODEL_ALIAS)
-    assert current.version == "1"
+    assert str(current.version) == "1"
