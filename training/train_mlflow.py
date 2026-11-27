@@ -133,13 +133,13 @@ def current_production(client):
         return None
 
 
-def register_and_promote(run_id, test_score, X_test, y_test, force=False):
+def register_and_promote(model_uri, test_score, X_test, y_test, force=False):
     """Register the run's model; move the alias if it is at least as good as production."""
     import mlflow
     from mlflow.tracking import MlflowClient
 
     client = MlflowClient()
-    version = mlflow.register_model(f"runs:/{run_id}/model", MODEL_NAME).version
+    version = mlflow.register_model(model_uri, MODEL_NAME).version
 
     current = current_production(client)
     current_score = None
@@ -200,12 +200,12 @@ def train_and_register(data_path, force_promote=False):
             model = final_model(X_train, X_dev, y_dev)
             test_scores = evaluate(y_test, model.predict_proba(X_test)[:, 1])
             mlflow.log_metrics({f"test_{k}": v for k, v in test_scores.items()})
-            log_model(model, X_test)
+            model_uri = log_model(model, X_test).model_uri
             print(f"  test: {test_scores}")
 
         mlflow.set_tag("final_run_id", final.info.run_id)
         version, promoted = register_and_promote(
-            final.info.run_id, test_scores.get(SELECTION_METRIC), X_test, y_test, force_promote
+            model_uri, test_scores.get(SELECTION_METRIC), X_test, y_test, force_promote
         )
         mlflow.set_tags({"registered_version": version, "promoted": promoted})
     return parent.info.run_id
@@ -224,12 +224,12 @@ def register_joblib(path, if_empty=False):
     example = pd.read_csv(ROOT / "tests" / "data" / "hotel_bookings_sample.csv").drop(
         columns=["is_canceled"]).head(3)
     mlflow.set_experiment(EXPERIMENT)
-    with mlflow.start_run(run_name="register-committed-model") as run:
+    with mlflow.start_run(run_name="register-committed-model"):
         mlflow.log_params({"source": str(path), "threshold": getattr(model, "threshold", None)})
         mlflow.set_tag("note", "Model trained by frontend/pipeline/train.py and committed to the repo; "
                                "metrics are in the README (not recomputed here).")
-        log_model(model, example)
-    version, _ = register_and_promote(run.info.run_id, None, None, None, force=True)
+        model_uri = log_model(model, example).model_uri
+    version, _ = register_and_promote(model_uri, None, None, None, force=True)
     return version
 
 
