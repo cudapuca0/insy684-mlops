@@ -34,6 +34,25 @@ Final model (Task 2, `is_canceled`): an equal-weight average of two pipelines, w
 The saved model is `model/cancellation_model.joblib`. Loading it needs `hotel_model.py` importable
 (it defines the custom classes the pickle refers to); a copy is in `frontend/pipeline/`.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    USER(("User")) ==> FE["Frontend<br/>booking form"]
+    FE == "POST /predict" ==> API["Model API<br/>FastAPI"]
+    API == "loads @production" ==> REG[("MLflow<br/>Model Registry")]
+    FLOW["Prefect training flow"] -- runs, metrics --> REG
+    SIM["Traffic simulator<br/>(--drift)"] --> API
+    API -- logs predictions --> PG[("PostgreSQL")]
+    EVI["Evidently monitor"] --> PG
+    EVI -. drift → retrain .-> FLOW
+    PROM["Prometheus"] -- scrapes /metrics --> API
+    GRAF["Grafana<br/>dashboards + alerts"] --> PROM
+    GRAF --> PG
+```
+
+Full diagram, the role of each tool and the request path: [docs/architecture.md](docs/architecture.md).
+
 ## Repository layout
 
 ```
