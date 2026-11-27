@@ -1,5 +1,8 @@
+import os
+
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
 
 from api import main
 
@@ -49,3 +52,51 @@ def test_longer_lead_time_raises_risk(client):
 def test_metrics_endpoint(client):
     client.get("/health")
     assert "api_requests_total" in client.get("/metrics").text
+
+
+def test_prediction_works_without_a_database(client):
+    """No DATABASE_URL in the tests, so logging is off and the answer still comes back."""
+    r = client.post("/predict", json=GOOD)
+    assert r.status_code == 200
+    assert r.json()["prediction_id"] is None
+
+
+def test_prediction_is_passed_to_the_logger_with_its_source(client, monkeypatch):
+    seen = {}
+
+    def fake_log(features, probability, prediction, source):
+        seen.update(features=features, probability=probability, prediction=prediction, source=source)
+        return 123
+
+    monkeypatch.setattr(main, "log_prediction", fake_log)
+    r = client.post("/predict", json=GOOD, headers={"X-Source": "simulator"})
+    assert r.json()["prediction_id"] == 123
+    assert seen["source"] == "simulator"
+    assert seen["features"]["lead_time"] == 120
+    assert seen["prediction"] in (0, 1)
+
+
+def test_database_failure_does_not_break_predictions(client, monkeypatch):
+    """Point the API at a database that is not there: the user must still get an answer."""
+    broken = create_engine("postgresql+psycopg://nobody:nopass@localhost:1/none")
+    monkeypatch.setattr(main, "engine", broken)
+    r = client.post("/predict", json=GOOD)
+    assert r.status_code == 200
+    assert r.json()["prediction_id"] is None
+
+
+@pytest.mark.skipif(not os.environ.get("TEST_DATABASE_URL"), reason="needs a PostgreSQL database")
+def test_prediction_row_is_written_to_postgres(client, monkeypatch):
+    url = os.environ["TEST_DATABASE_URL"]
+    db = create_engine(url)
+    monkeypatch.setattr(main, "engine", db)
+    r = client.post("/predict", json=GOOD, headers={"X-Source": "pytest"})
+    row_id = r.json()["prediction_id"]
+    assert row_id is not None
+    with db.connect() as conn:
+        row = conn.execute(
+            text("SELECT source, prediction, features->>'lead_time' FROM predictions WHERE id = :i"),
+            {"i": row_id},
+        ).one()
+    assert row[0] == "pytest"
+    assert row[2] == "120"
