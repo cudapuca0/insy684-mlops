@@ -3,6 +3,10 @@
 GET  /health   -> is the service up, and is the model loaded?
 POST /predict  -> cancellation probability for one booking (also saved to PostgreSQL)
 GET  /metrics  -> request counts and latency for Prometheus
+
+Where the model comes from:
+  - MLFLOW_TRACKING_URI set  -> the MLflow Model Registry, models:/hotel-cancellation@production
+  - otherwise (or if the registry is unreachable) -> the joblib file at MODEL_PATH
 """
 
 import json
@@ -25,7 +29,9 @@ from sqlalchemy import create_engine, text
 sys.path.insert(0, os.environ.get("HOTEL_MODEL_DIR", "frontend/pipeline"))
 
 MODEL_PATH = os.environ.get("MODEL_PATH", "model/cancellation_model.joblib")
-MODEL_VERSION = os.environ.get("MODEL_VERSION", "local-file")  # becomes the registry version later
+MODEL_NAME = os.environ.get("MODEL_NAME", "hotel-cancellation")
+MODEL_ALIAS = os.environ.get("MODEL_ALIAS", "production")
+MODEL_VERSION = os.environ.get("MODEL_VERSION", "local-file")  # replaced by the registry version
 THRESHOLD = 0.45  # same cut-off the model was tuned with
 
 log = logging.getLogger("api")
@@ -114,10 +120,30 @@ def log_prediction(features: dict, probability: float, prediction: int, source: 
         return None
 
 
+def load_from_registry():
+    """Load models:/<MODEL_NAME>@<MODEL_ALIAS> from MLflow. Returns (model, version) or (None, None)."""
+    if not os.environ.get("MLFLOW_TRACKING_URI"):
+        return None, None
+    try:
+        import mlflow.sklearn
+        from mlflow.tracking import MlflowClient
+
+        version = MlflowClient().get_model_version_by_alias(MODEL_NAME, MODEL_ALIAS).version
+        loaded = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}/{version}")
+        log.info("Loaded %s version %s from the MLflow registry", MODEL_NAME, version)
+        return loaded, str(version)
+    except Exception as exc:
+        log.warning("Could not load the model from MLflow (%s); falling back to %s", exc, MODEL_PATH)
+        return None, None
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global model, engine
-    if Path(MODEL_PATH).exists():
+    global model, engine, MODEL_VERSION
+    model, version = load_from_registry()
+    if model is not None:
+        MODEL_VERSION = version
+    elif Path(MODEL_PATH).exists():
         model = joblib.load(MODEL_PATH)
     engine = make_engine()
     yield
@@ -143,7 +169,7 @@ async def count_requests(request: Request, call_next):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "model_loaded": model is not None}
+    return {"status": "ok", "model_loaded": model is not None, "model_version": MODEL_VERSION}
 
 
 @app.post("/predict", response_model=Prediction)

@@ -1,10 +1,43 @@
 services:
+  # MLflow tracking server + Model Registry (UI on http://localhost:5050).
+  mlflow:
+    build:
+      context: .
+      dockerfile: mlflow-server/Dockerfile
+    volumes:
+      - mlflow_data:/mlflow
+    ports:
+      - "127.0.0.1:5050:5000"   # 5050 on the host: macOS uses 5000 for AirPlay
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # One-off job: registers model/cancellation_model.joblib as hotel-cancellation@production
+  # if the registry is empty, then exits. Full tracked training instead:
+  #   docker compose run --rm -v "$PWD/frontend/data/raw:/data" model-registrar --data /data/hotel_bookings.csv
+  model-registrar:
+    build:
+      context: .
+      dockerfile: training/Dockerfile
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      mlflow:
+        condition: service_healthy
+
   api:
     build:
       context: .
       dockerfile: api/Dockerfile
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000   # loads models:/hotel-cancellation@production
     ports:
       - "127.0.0.1:8000:8000"
+    depends_on:
+      model-registrar:
+        condition: service_completed_successfully
 
   frontend:
     build:
@@ -13,3 +46,6 @@ services:
       API_BASE_URL: http://api:8000
     ports:
       - "127.0.0.1:3000:3000"
+
+volumes:
+  mlflow_data:
