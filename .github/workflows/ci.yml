@@ -25,8 +25,8 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: pip install -r frontend/pipeline/requirements.txt pytest
+        run: pip install -r frontend/pipeline/requirements.txt -r api/requirements.txt pytest httpx
       - name: Unit tests
         env:
-          PYTHONPATH: frontend/pipeline
+          PYTHONPATH: .:frontend/pipeline
         run: pytest tests -v
