@@ -1,10 +1,12 @@
 """Model API (FastAPI) for the hotel cancellation model.
 
 GET  /health   -> is the service up, and is the model loaded?
-POST /predict  -> cancellation probability for one booking
+POST /predict  -> cancellation probability for one booking (also saved to PostgreSQL)
 GET  /metrics  -> request counts and latency for Prometheus
 """
 
+import json
+import logging
 import os
 import sys
 import time
@@ -17,12 +19,16 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
+from sqlalchemy import create_engine, text
 
 # The saved model refers to classes in hotel_model.py, so Python must be able to import it.
 sys.path.insert(0, os.environ.get("HOTEL_MODEL_DIR", "frontend/pipeline"))
 
 MODEL_PATH = os.environ.get("MODEL_PATH", "model/cancellation_model.joblib")
+MODEL_VERSION = os.environ.get("MODEL_VERSION", "local-file")  # becomes the registry version later
 THRESHOLD = 0.45  # same cut-off the model was tuned with
+
+log = logging.getLogger("api")
 
 REQUESTS = Counter("api_requests_total", "HTTP requests", ["endpoint", "status"])
 LATENCY = Histogram("api_request_latency_seconds", "Request latency", ["endpoint"])
@@ -60,20 +66,63 @@ class Booking(BaseModel):
 
 
 class Prediction(BaseModel):
+    prediction_id: int | None = None  # row id in PostgreSQL, or None if logging is off
     cancel_probability: float
     will_cancel: bool
     label: str
 
 
 model = None
+engine = None  # database connection, or None when DATABASE_URL is not set
+
+
+def make_engine():
+    """Connect to PostgreSQL if DATABASE_URL is set, for example
+    postgresql+psycopg://user:password@postgres:5432/monitoring"""
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        log.info("DATABASE_URL not set: predictions will not be logged.")
+        return None
+    return create_engine(url, pool_pre_ping=True)
+
+
+def log_prediction(features: dict, probability: float, prediction: int, source: str):
+    """Save one prediction to the predictions table. Never raises: a database
+    problem must not stop the user from getting their answer."""
+    if engine is None:
+        return None
+    try:
+        with engine.begin() as conn:
+            return conn.execute(
+                text(
+                    "INSERT INTO predictions "
+                    "(features, probability, prediction, threshold, model_version, source) "
+                    "VALUES (CAST(:features AS JSONB), :probability, :prediction, "
+                    ":threshold, :model_version, :source) RETURNING id"
+                ),
+                {
+                    "features": json.dumps(features),
+                    "probability": probability,
+                    "prediction": prediction,
+                    "threshold": THRESHOLD,
+                    "model_version": MODEL_VERSION,
+                    "source": source,
+                },
+            ).scalar_one()
+    except Exception as exc:
+        log.error("Could not log prediction: %s", exc)
+        return None
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global model
+    global model, engine
     if Path(MODEL_PATH).exists():
         model = joblib.load(MODEL_PATH)
+    engine = make_engine()
     yield
+    if engine is not None:
+        engine.dispose()
 
 
 app = FastAPI(title="Hotel Cancellation API", version="1.0", lifespan=lifespan)
@@ -98,14 +147,19 @@ def health() -> dict:
 
 
 @app.post("/predict", response_model=Prediction)
-def predict(booking: Booking) -> Prediction:
+def predict(booking: Booking, request: Request) -> Prediction:
     if model is None:
         raise HTTPException(status_code=503, detail="Model is not loaded yet.")
-    row = pd.DataFrame([booking.model_dump()])
+    features = booking.model_dump()
+    row = pd.DataFrame([features])
     probability = float(model.predict_proba(row)[0, 1])
     will_cancel = probability > THRESHOLD
     PREDICTIONS.labels("cancel" if will_cancel else "keep").inc()
+    # Callers say who they are with an X-Source header, for example "frontend" or "simulator".
+    source = request.headers.get("X-Source", "api")
+    prediction_id = log_prediction(features, probability, int(will_cancel), source)
     return Prediction(
+        prediction_id=prediction_id,
         cancel_probability=round(probability, 4),
         will_cancel=will_cancel,
         label="Likely to cancel" if will_cancel else "Likely to keep booking",
