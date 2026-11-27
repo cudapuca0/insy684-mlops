@@ -118,6 +118,9 @@ def log_model(model, X_example):
         model,
         name="model",
         code_paths=[str(PIPELINE_DIR / "hotel_model.py")],
+        # The ensemble uses our own classes (hotel_model.py), which MLflow's default skops
+        # format refuses to load; cloudpickle stores them like joblib does.
+        serialization_format="cloudpickle",
         signature=infer_signature(example, model.predict_proba(example)),
         input_example=example,
     )
